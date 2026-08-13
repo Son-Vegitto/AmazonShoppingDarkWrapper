@@ -1,0 +1,169 @@
+name: Store Amazon Shopping Dark Signing Key
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  store-key:
+    name: Store Signing Key as Repository Secret
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install PyNaCl
+        run: |
+          python3 -m pip install --user pynacl
+
+      - name: Download encrypted keystore artifact
+        env:
+          GH_TOKEN: ${{ secrets.TEMP_SETUP_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+
+          ARTIFACT_URL=$(gh api \
+            "repos/$REPO/actions/artifacts?per_page=100" \
+            --jq '.artifacts[]
+              | select(.name=="Amazon-Shopping-Dark-Encrypted-Signing-Key")
+              | select(.expired==false)
+              | .archive_download_url' \
+            | head -n 1)
+
+          if [ -z "$ARTIFACT_URL" ]; then
+            echo "Encrypted signing-key artifact was not found."
+            exit 1
+          fi
+
+          echo "Downloading signing-key artifact..."
+
+          curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "$ARTIFACT_URL" \
+            -o artifact.zip
+
+          unzip -o artifact.zip -d artifact
+
+          test -f artifact/AmazonShoppingDark.keystore.enc
+
+      - name: Decrypt keystore
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_EXPORT_PASSWORD }}
+        run: |
+          set -e
+
+          openssl enc \
+            -d \
+            -aes-256-cbc \
+            -pbkdf2 \
+            -iter 600000 \
+            -in artifact/AmazonShoppingDark.keystore.enc \
+            -out AmazonShoppingDark.keystore \
+            -pass env:KEYSTORE_PASSWORD
+
+          keytool -list \
+            -keystore AmazonShoppingDark.keystore \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias amazonshoppingdark \
+            > /dev/null
+
+          echo "Keystore successfully decrypted and verified."
+
+      - name: Encode keystore
+        run: |
+          set -e
+
+          base64 -w 0 AmazonShoppingDark.keystore \
+            > AmazonShoppingDark.keystore.base64
+
+          echo "Keystore encoded."
+
+      - name: Get GitHub repository public key
+        env:
+          GH_TOKEN: ${{ secrets.TEMP_SETUP_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+
+          gh api \
+            "repos/$REPO/actions/secrets/public-key" \
+            > public-key.json
+
+      - name: Encrypt keystore for GitHub Secrets
+        env:
+          GH_TOKEN: ${{ secrets.TEMP_SETUP_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+
+          python3 <<'PY'
+          import base64
+          import json
+          import os
+
+          from nacl.public import PublicKey, SealedBox
+
+          with open("public-key.json", "r") as f:
+              public_key_data = json.load(f)
+
+          key = PublicKey(
+              base64.b64decode(public_key_data["key"])
+          )
+
+          with open("AmazonShoppingDark.keystore.base64", "rb") as f:
+              secret = f.read()
+
+          sealed_box = SealedBox(key)
+          encrypted = sealed_box.encrypt(secret)
+
+          with open("encrypted-secret.txt", "w") as f:
+              f.write(base64.b64encode(encrypted).decode())
+
+          with open("secret-key-id.txt", "w") as f:
+              f.write(public_key_data["key_id"])
+          PY
+
+      - name: Create repository signing-key secret
+        env:
+          GH_TOKEN: ${{ secrets.TEMP_SETUP_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+
+          ENCRYPTED_VALUE=$(cat encrypted-secret.txt)
+          KEY_ID=$(cat secret-key-id.txt)
+
+          jq -n \
+            --arg encrypted_value "$ENCRYPTED_VALUE" \
+            --arg key_id "$KEY_ID" \
+            '{
+              encrypted_value: $encrypted_value,
+              key_id: $key_id
+            }' \
+          | gh api \
+              --method PUT \
+              "repos/$REPO/actions/secrets/AMAZON_KEYSTORE_BASE64" \
+              --input -
+
+          echo "AMAZON_KEYSTORE_BASE64 repository secret created."
+
+      - name: Remove sensitive files
+        if: always()
+        run: |
+          rm -f \
+            AmazonShoppingDark.keystore \
+            AmazonShoppingDark.keystore.base64 \
+            encrypted-secret.txt \
+            secret-key-id.txt \
+            public-key.json \
+            artifact.zip
+
+          rm -rf artifact
+
+      - name: Confirm
+        run: |
+          echo "Signing key has been transferred to GitHub Secrets."
+          echo "No keystore was committed to the repository."
