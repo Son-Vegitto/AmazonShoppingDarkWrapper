@@ -1,0 +1,30 @@
+plugins {
+    id("com.android.application")
+}
+
+android {
+    namespace = "com.amazon.shopping.dark"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "com.amazon.shopping.dark"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            isShrinkResources = false
+            isDebuggable = false
+        }
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.16.0")
+    implementation("androidx.activity:activity:1.10.1")
+    implementation("androidx.webkit:webkit:1.13.0")
+}
