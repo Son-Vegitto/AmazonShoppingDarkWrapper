@@ -3,7 +3,7 @@
 
     <queries>
 
-        <!-- Discover installed browsers. -->
+        <!-- Discover browsers capable of handling HTTPS URLs. -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
@@ -21,8 +21,7 @@
         android:allowBackup="false"
         android:icon="@drawable/ic_amazon_dark"
         android:label="Amazon Shopping (Dark)"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.AmazonShoppingDark">
+        android:supportsRtl="true">
 
         <activity
             android:name=".SettingsActivity"
