@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.browser.customtabs.CustomTabsIntent;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -20,26 +21,29 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        openAmazonInEdgeCanary();
+        openAmazonInEdgeCustomTab();
     }
 
-    private void openAmazonInEdgeCanary() {
+    private void openAmazonInEdgeCustomTab() {
 
         try {
-            Intent intent = new Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse(AMAZON_URL)
+            CustomTabsIntent customTabsIntent =
+                    new CustomTabsIntent.Builder()
+                            .setShowTitle(false)
+                            .build();
+
+            /*
+             * Directly target Microsoft Edge Canary.
+             * This bypasses URLCheck.
+             */
+            customTabsIntent.intent.setPackage(
+                    EDGE_CANARY_PACKAGE
             );
 
-            // Directly target Edge Canary.
-            // This bypasses URLCheck.
-            intent.setPackage(EDGE_CANARY_PACKAGE);
-
-            // Ask Android/Edge for a new browsing context rather
-            // than trying to manipulate the existing Edge task.
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
-            startActivity(intent);
+            customTabsIntent.launchUrl(
+                    this,
+                    Uri.parse(AMAZON_URL)
+            );
 
         } catch (ActivityNotFoundException e) {
 
@@ -48,12 +52,16 @@ public class MainActivity extends AppCompatActivity {
                     "Microsoft Edge Canary is not installed.",
                     Toast.LENGTH_LONG
             ).show();
+
+        } catch (Exception e) {
+
+            Toast.makeText(
+                    this,
+                    "Edge Canary could not open Amazon.",
+                    Toast.LENGTH_LONG
+            ).show();
         }
 
-        /*
-         * The launcher APK itself doesn't need to remain visible.
-         * Edge becomes the visible application.
-         */
         finish();
     }
 }
