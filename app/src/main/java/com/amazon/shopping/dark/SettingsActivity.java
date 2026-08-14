@@ -2,62 +2,60 @@ package com.amazon.shopping.dark;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.content.pm.ServiceInfo;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 public class SettingsActivity extends AppCompatActivity {
 
-    private static final String PREFS_NAME =
-            "amazon_launcher_preferences";
+    private static final String CUSTOM_TABS_SERVICE =
+            "android.support.customtabs.action.CustomTabsService";
 
-    private static final String PREF_BROWSER =
-            "browser";
+    private static final String EDGE_CANARY_PACKAGE =
+            "com.microsoft.emmx.canary";
 
-    private static final String BROWSER_EDGE =
-            "edge";
+    private final List<BrowserOption> browsers =
+            new ArrayList<>();
 
-    private static final String BROWSER_DEFAULT =
-            "default";
-
-    private static final String BROWSER_CHROME =
-            "chrome";
-
-    private static final String BROWSER_SAMSUNG =
-            "samsung";
+    private Spinner browserSpinner;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        SharedPreferences prefs =
-                getSharedPreferences(
-                        PREFS_NAME,
-                        MODE_PRIVATE
-                );
+        buildSettingsScreen();
+    }
 
-        String saved =
-                prefs.getString(
-                        PREF_BROWSER,
-                        BROWSER_EDGE
-                );
+    private void buildSettingsScreen() {
 
-        LinearLayout layout =
+        LinearLayout root =
                 new LinearLayout(this);
 
-        layout.setOrientation(
+        root.setOrientation(
                 LinearLayout.VERTICAL
         );
 
         int padding = dp(24);
 
-        layout.setPadding(
+        root.setPadding(
                 padding,
                 padding,
                 padding,
@@ -73,11 +71,11 @@ public class SettingsActivity extends AppCompatActivity {
 
         title.setTextSize(22);
 
-        title.setGravity(
-                Gravity.CENTER_VERTICAL
+        title.setTextColor(
+                Color.BLACK
         );
 
-        layout.addView(
+        root.addView(
                 title,
                 new LinearLayout.LayoutParams(
                         -1,
@@ -89,123 +87,323 @@ public class SettingsActivity extends AppCompatActivity {
                 new TextView(this);
 
         description.setText(
-                "Open Amazon with:"
+                "Choose which browser should open Amazon."
         );
 
         description.setTextSize(16);
 
-        layout.addView(
+        root.addView(
                 description,
                 new LinearLayout.LayoutParams(
                         -1,
-                        dp(50)
+                        dp(55)
                 )
         );
 
-        String[] browserNames = {
-                "Edge Canary",
-                "Default browser",
-                "Chrome",
-                "Samsung Internet"
-        };
+        browsers.clear();
 
-        String[] browserValues = {
-                BROWSER_EDGE,
-                BROWSER_DEFAULT,
-                BROWSER_CHROME,
-                BROWSER_SAMSUNG
-        };
+        /*
+         * Always provide the normal Android browser option.
+         */
+        browsers.add(
+                new BrowserOption(
+                        "Default browser (URLCheck)",
+                        MainActivity.DEFAULT_BROWSER
+                )
+        );
 
-        Spinner spinner =
+        /*
+         * Prefer Edge Canary at the top because it is your
+         * desired default.
+         */
+        if (isCustomTabsProviderInstalled(
+                EDGE_CANARY_PACKAGE
+        )) {
+
+            browsers.add(
+                    new BrowserOption(
+                            "Edge Canary",
+                            EDGE_CANARY_PACKAGE
+                    )
+            );
+        }
+
+        /*
+         * Discover all other Custom Tabs providers.
+         */
+        List<BrowserOption> discovered =
+                discoverCustomTabsBrowsers();
+
+        for (BrowserOption option : discovered) {
+
+            boolean alreadyAdded = false;
+
+            for (BrowserOption existing : browsers) {
+
+                if (existing.packageName.equals(
+                        option.packageName
+                )) {
+                    alreadyAdded = true;
+                    break;
+                }
+            }
+
+            if (!alreadyAdded) {
+                browsers.add(option);
+            }
+        }
+
+        /*
+         * Alphabetize everything except Default browser
+         * and Edge Canary, which remain at the top.
+         */
+        if (browsers.size() > 2) {
+
+            List<BrowserOption> sortable =
+                    new ArrayList<>(
+                            browsers.subList(2, browsers.size())
+                    );
+
+            Collections.sort(
+                    sortable,
+                    new Comparator<BrowserOption>() {
+
+                        @Override
+                        public int compare(
+                                BrowserOption a,
+                                BrowserOption b
+                        ) {
+                            return a.label.compareToIgnoreCase(
+                                    b.label
+                            );
+                        }
+                    }
+            );
+
+            while (browsers.size() > 2) {
+                browsers.remove(
+                        browsers.size() - 1
+                );
+            }
+
+            browsers.addAll(sortable);
+        }
+
+        String[] names =
+                new String[browsers.size()];
+
+        for (int i = 0;
+             i < browsers.size();
+             i++) {
+
+            names[i] =
+                    browsers.get(i).label;
+        }
+
+        browserSpinner =
                 new Spinner(this);
 
         ArrayAdapter<String> adapter =
                 new ArrayAdapter<>(
                         this,
                         android.R.layout.simple_spinner_item,
-                        browserNames
+                        names
                 );
 
         adapter.setDropDownViewResource(
-                        android.R.layout.simple_spinner_dropdown_item
+                android.R.layout.simple_spinner_dropdown_item
         );
 
-        spinner.setAdapter(adapter);
+        browserSpinner.setAdapter(adapter);
+
+        SharedPreferences prefs =
+                getSharedPreferences(
+                        MainActivity.PREFS_NAME,
+                        MODE_PRIVATE
+                );
+
+        String current =
+                prefs.getString(
+                        MainActivity.PREF_BROWSER,
+                        EDGE_CANARY_PACKAGE
+                );
 
         int selected = 0;
 
         for (int i = 0;
-             i < browserValues.length;
+             i < browsers.size();
              i++) {
 
-            if (browserValues[i].equals(saved)) {
+            if (browsers.get(i)
+                    .packageName
+                    .equals(current)) {
+
                 selected = i;
                 break;
             }
         }
 
-        spinner.setSelection(selected);
+        browserSpinner.setSelection(
+                selected
+        );
 
-        layout.addView(
-                spinner,
+        root.addView(
+                browserSpinner,
                 new LinearLayout.LayoutParams(
                         -1,
                         dp(60)
                 )
         );
 
-        TextView save =
-                new TextView(this);
+        Button save =
+                new Button(this);
 
         save.setText(
                 "Save"
         );
 
-        save.setTextSize(17);
-
-        save.setGravity(
-                Gravity.CENTER
-        );
-
-        save.setClickable(true);
-
-        save.setFocusable(true);
-
         LinearLayout.LayoutParams
                 saveParams =
                 new LinearLayout.LayoutParams(
                         -1,
-                        dp(56)
+                        dp(55)
                 );
 
-        saveParams.topMargin = dp(24);
+        saveParams.topMargin =
+                dp(24);
 
-        layout.addView(
+        root.addView(
                 save,
                 saveParams
         );
 
         save.setOnClickListener(
-                v -> {
+                new View.OnClickListener() {
 
-                    int position =
-                            spinner.getSelectedItemPosition();
+                    @Override
+                    public void onClick(View v) {
 
-                    String value =
-                            browserValues[position];
+                        int position =
+                                browserSpinner
+                                        .getSelectedItemPosition();
 
-                    prefs.edit()
-                            .putString(
-                                    PREF_BROWSER,
-                                    value
-                            )
-                            .apply();
+                        if (position < 0 ||
+                                position >= browsers.size()) {
+                            return;
+                        }
 
-                    finish();
+                        String packageName =
+                                browsers.get(position)
+                                        .packageName;
+
+                        prefs.edit()
+                                .putString(
+                                        MainActivity.PREF_BROWSER,
+                                        packageName
+                                )
+                                .apply();
+
+                        finish();
+                    }
                 }
         );
 
-        setContentView(layout);
+        setContentView(root);
+    }
+
+    private List<BrowserOption>
+    discoverCustomTabsBrowsers() {
+
+        List<BrowserOption> result =
+                new ArrayList<>();
+
+        Intent serviceIntent =
+                new Intent(
+                        CUSTOM_TABS_SERVICE
+                );
+
+        PackageManager pm =
+                getPackageManager();
+
+        List<ResolveInfo> services =
+                pm.queryIntentServices(
+                        serviceIntent,
+                        0
+                );
+
+        Set<String> seen =
+                new HashSet<>();
+
+        for (ResolveInfo resolveInfo :
+                services) {
+
+            ServiceInfo serviceInfo =
+                    resolveInfo.serviceInfo;
+
+            if (serviceInfo == null) {
+                continue;
+            }
+
+            String packageName =
+                    serviceInfo.packageName;
+
+            if (packageName == null ||
+                    seen.contains(packageName)) {
+                continue;
+            }
+
+            seen.add(packageName);
+
+            String label;
+
+            try {
+
+                label =
+                        pm.getApplicationLabel(
+                                pm.getApplicationInfo(
+                                        packageName,
+                                        0
+                                )
+                        ).toString();
+
+            } catch (Exception e) {
+
+                label = packageName;
+            }
+
+            result.add(
+                    new BrowserOption(
+                            label,
+                            packageName
+                    )
+            );
+        }
+
+        return result;
+    }
+
+    private boolean
+    isCustomTabsProviderInstalled(
+            String packageName
+    ) {
+
+        Intent intent =
+                new Intent(
+                        CUSTOM_TABS_SERVICE
+                );
+
+        intent.setPackage(
+                packageName
+        );
+
+        List<ResolveInfo> services =
+                getPackageManager()
+                        .queryIntentServices(
+                                intent,
+                                0
+                        );
+
+        return !services.isEmpty();
     }
 
     private int dp(int value) {
@@ -216,5 +414,19 @@ public class SettingsActivity extends AppCompatActivity {
                                 .getDisplayMetrics()
                                 .density
         );
+    }
+
+    private static class BrowserOption {
+
+        final String label;
+        final String packageName;
+
+        BrowserOption(
+                String label,
+                String packageName
+        ) {
+            this.label = label;
+            this.packageName = packageName;
+        }
     }
 }
