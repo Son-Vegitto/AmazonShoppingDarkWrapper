@@ -5,12 +5,22 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 
-import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String AMAZON_URL = "https://www.amazon.com/";
+    public static final String PREFS_NAME =
+            "amazon_shopping_settings";
+
+    public static final String PREF_BROWSER =
+            "browser";
+
+    public static final String DEFAULT_BROWSER =
+            "default";
+
+    private static final String AMAZON_URL =
+            "https://www.amazon.com/";
+
     private static final String EDGE_CANARY_PACKAGE =
             "com.microsoft.emmx.canary";
 
@@ -18,67 +28,59 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Immediately open Amazon using the saved browser selection.
         openAmazon();
     }
 
     private void openAmazon() {
 
-        String browser = getSharedPreferences(
-                "settings",
-                MODE_PRIVATE
-        ).getString(
-                "browser",
-                "edge_canary"
-        );
-
-        switch (browser) {
-
-            case "edge_canary":
-                openWithEdgeCanary();
-                break;
-
-            case "chrome":
-                openWithPackage(
-                        "com.android.chrome"
+        String browser =
+                getSharedPreferences(
+                        PREFS_NAME,
+                        MODE_PRIVATE
+                ).getString(
+                        PREF_BROWSER,
+                        EDGE_CANARY_PACKAGE
                 );
-                break;
 
-            case "samsung_internet":
-                openWithPackage(
-                        "com.sec.android.app.sbrowser"
-                );
-                break;
+        if (EDGE_CANARY_PACKAGE.equals(browser)) {
 
-            case "default":
-            default:
-                openWithDefaultBrowser();
-                break;
+            openWithEdgeCanary();
+
+        } else if (DEFAULT_BROWSER.equals(browser)) {
+
+            openWithDefaultBrowser();
+
+        } else {
+
+            openWithPackage(browser);
         }
+
+        finish();
     }
 
     /**
-     * Opens Amazon directly in Edge Canary.
+     * Open Amazon directly in Edge Canary.
      *
-     * This intentionally does NOT use a Custom Tab.
-     * Edge receives a normal ACTION_VIEW intent, but we
-     * explicitly target the Canary package.
+     * This deliberately uses ACTION_VIEW rather than
+     * Custom Tabs so we can test whether Edge will give
+     * us the standalone-style presentation.
      */
     private void openWithEdgeCanary() {
 
         try {
 
-            Intent intent = new Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse(AMAZON_URL)
+            Intent intent =
+                    new Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse(AMAZON_URL)
+                    );
+
+            intent.setPackage(
+                    EDGE_CANARY_PACKAGE
             );
 
-            intent.setPackage(EDGE_CANARY_PACKAGE);
-
             /*
-             * Used by some Android browser/launcher
-             * implementations to identify an application-
-             * associated URL.
+             * Browser/application identifier.
              */
             intent.putExtra(
                     "com.android.browser.application_id",
@@ -86,8 +88,10 @@ public class MainActivity extends AppCompatActivity {
             );
 
             /*
-             * Ask Android for a separate task rather than
-             * simply reusing the existing Edge task.
+             * Request a separate Android task.
+             *
+             * This should NOT interfere with the user's
+             * existing Edge tabs/session.
              */
             intent.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK |
@@ -98,55 +102,28 @@ public class MainActivity extends AppCompatActivity {
 
         } catch (ActivityNotFoundException e) {
 
-            // Edge Canary isn't installed.
+            /*
+             * Edge Canary isn't available.
+             * Fall back to the normal default browser.
+             */
             openWithDefaultBrowser();
         }
-
-        finish();
     }
 
     /**
-     * Opens the URL using a specifically selected browser.
-     */
-    private void openWithPackage(String packageName) {
-
-        try {
-
-            Intent intent = new Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse(AMAZON_URL)
-            );
-
-            intent.setPackage(packageName);
-
-            intent.addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK |
-                    Intent.FLAG_ACTIVITY_MULTIPLE_TASK
-            );
-
-            startActivity(intent);
-
-        } catch (ActivityNotFoundException e) {
-
-            openWithDefaultBrowser();
-        }
-
-        finish();
-    }
-
-    /**
-     * Lets Android use the user's normal default browser.
+     * Open using the user's Android default browser.
      *
-     * In your setup this can be URLCheck.
+     * In your setup this is normally URLCheck.
      */
     private void openWithDefaultBrowser() {
 
         try {
 
-            Intent intent = new Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse(AMAZON_URL)
-            );
+            Intent intent =
+                    new Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse(AMAZON_URL)
+                    );
 
             intent.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK |
@@ -158,12 +135,46 @@ public class MainActivity extends AppCompatActivity {
         } catch (ActivityNotFoundException ignored) {
             // No browser available.
         }
+    }
 
-        finish();
+    /**
+     * Open using a specifically selected browser.
+     *
+     * This allows Chrome, Samsung Internet, or another
+     * browser discovered by SettingsActivity.
+     */
+    private void openWithPackage(
+            String packageName
+    ) {
+
+        try {
+
+            Intent intent =
+                    new Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse(AMAZON_URL)
+                    );
+
+            intent.setPackage(
+                    packageName
+            );
+
+            intent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK |
+                    Intent.FLAG_ACTIVITY_MULTIPLE_TASK
+            );
+
+            startActivity(intent);
+
+        } catch (ActivityNotFoundException e) {
+
+            openWithDefaultBrowser();
+        }
     }
 
     @Override
-    public void onBackPressed() {
-        finish();
+    protected void onDestroy() {
+
+        super.onDestroy();
     }
 }
