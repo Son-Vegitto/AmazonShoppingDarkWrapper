@@ -3,6 +3,7 @@ package com.amazon.shopping.dark;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -74,7 +75,7 @@ public class MainActivity extends AppCompatActivity {
                     new CustomTabsIntent.Builder();
 
             /*
-             * Dark toolbar to match the Amazon dark appearance.
+             * Dark toolbar.
              */
             CustomTabColorSchemeParams darkParams =
                     new CustomTabColorSchemeParams.Builder()
@@ -88,14 +89,13 @@ public class MainActivity extends AppCompatActivity {
             );
 
             /*
-             * Don't display the page title in the toolbar.
+             * Don't display the page title.
              */
             builder.setShowTitle(false);
 
             /*
-             * Allow the URL portion of the toolbar to
-             * collapse while scrolling, if supported
-             * by Edge Canary.
+             * Allow Edge to hide/collapse the URL bar
+             * while scrolling, if supported.
              */
             builder.setUrlBarHidingEnabled(true);
 
@@ -103,9 +103,10 @@ public class MainActivity extends AppCompatActivity {
                     builder.build();
 
             /*
-             * Force the Custom Tab to use Edge Canary.
+             * Force Edge Canary as the Custom Tab provider.
              *
-             * This bypasses URLCheck for this selection.
+             * This bypasses URLCheck when Edge Canary
+             * is selected.
              */
             customTabsIntent.intent.setPackage(
                     EDGE_CANARY_PACKAGE
@@ -114,8 +115,8 @@ public class MainActivity extends AppCompatActivity {
             /*
              * Request a separate Android task.
              *
-             * This should not close or replace the user's
-             * existing Edge tabs/session.
+             * This should preserve the user's existing
+             * Edge tabs/session.
              */
             customTabsIntent.intent.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK |
@@ -131,16 +132,15 @@ public class MainActivity extends AppCompatActivity {
             );
 
             /*
-             * This application is only a launcher/wrapper.
-             * Remove it after Edge has been launched.
+             * Remove the wrapper Activity without
+             * displaying a transition animation.
              */
-            finish();
+            finishWithoutAnimation();
 
         } catch (ActivityNotFoundException e) {
 
             /*
-             * Edge Canary isn't available or cannot handle
-             * the Custom Tab request.
+             * Edge Canary isn't available.
              */
             openWithDefaultBrowser();
         }
@@ -168,26 +168,21 @@ public class MainActivity extends AppCompatActivity {
 
             startActivity(intent);
 
-            /*
-             * Remove the wrapper activity after launching
-             * the browser.
-             */
-            finish();
+            finishWithoutAnimation();
 
         } catch (ActivityNotFoundException ignored) {
 
-            /*
-             * There is no browser available.
-             */
-            finish();
+            finishWithoutAnimation();
         }
     }
 
     /**
-     * Open Amazon using a specifically selected browser.
+     * Open Amazon using a specifically selected
+     * browser package.
      *
-     * This is used for Chrome, Samsung Internet,
-     * or another browser discovered by SettingsActivity.
+     * Used for Chrome, Samsung Internet, Edge
+     * variants, or another browser discovered
+     * by SettingsActivity.
      */
     private void openWithPackage(
             String packageName
@@ -212,19 +207,46 @@ public class MainActivity extends AppCompatActivity {
 
             startActivity(intent);
 
-            /*
-             * Remove the wrapper activity after launching
-             * the selected browser.
-             */
-            finish();
+            finishWithoutAnimation();
 
         } catch (ActivityNotFoundException e) {
 
             /*
-             * The selected browser may have been removed
-             * or disabled. Fall back to the default browser.
+             * Selected browser is unavailable.
+             * Fall back to the default browser.
              */
             openWithDefaultBrowser();
+        }
+    }
+
+    /**
+     * Finish this wrapper Activity without showing
+     * a closing/opening transition animation.
+     */
+    private void finishWithoutAnimation() {
+
+        finish();
+
+        /*
+         * Android 14/API 34 and newer.
+         */
+        if (Build.VERSION.SDK_INT >= 34) {
+
+            overrideActivityTransition(
+                    OVERRIDE_TRANSITION_CLOSE,
+                    0,
+                    0
+            );
+
+        } else {
+
+            /*
+             * Older Android versions.
+             */
+            overridePendingTransition(
+                    0,
+                    0
+            );
         }
     }
 }
