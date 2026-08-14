@@ -6,8 +6,8 @@
         android:shortcutId="browser_settings"
         android:enabled="true"
         android:icon="@drawable/ic_amazon_dark"
-        android:shortcutShortLabel="Browser settings"
-        android:shortcutLongLabel="Amazon browser settings">
+        android:shortcutShortLabel="@string/browser_settings_short"
+        android:shortcutLongLabel="@string/browser_settings_long">
 
         <intent
             android:action="android.intent.action.VIEW"
