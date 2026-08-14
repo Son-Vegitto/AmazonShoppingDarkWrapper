@@ -7,7 +7,6 @@ import android.os.Bundle;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.browser.customtabs.CustomTabsIntent;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -21,29 +20,32 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        openAmazonInEdgeCustomTab();
+        openAmazonInEdgeCanary();
     }
 
-    private void openAmazonInEdgeCustomTab() {
+    private void openAmazonInEdgeCanary() {
 
         try {
-            CustomTabsIntent customTabsIntent =
-                    new CustomTabsIntent.Builder()
-                            .setShowTitle(false)
-                            .build();
-
-            /*
-             * Directly target Microsoft Edge Canary.
-             * This bypasses URLCheck.
-             */
-            customTabsIntent.intent.setPackage(
-                    EDGE_CANARY_PACKAGE
-            );
-
-            customTabsIntent.launchUrl(
-                    this,
+            Intent intent = new Intent(
+                    Intent.ACTION_VIEW,
                     Uri.parse(AMAZON_URL)
             );
+
+            /*
+             * Directly launch Edge Canary.
+             *
+             * This bypasses URLCheck and lets Edge handle
+             * Amazon using its normal browser environment.
+             */
+            intent.setPackage(EDGE_CANARY_PACKAGE);
+
+            /*
+             * Start the browser without attempting to manipulate
+             * or clear Edge's existing task/session.
+             */
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            startActivity(intent);
 
         } catch (ActivityNotFoundException e) {
 
@@ -57,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
 
             Toast.makeText(
                     this,
-                    "Edge Canary could not open Amazon.",
+                    "Unable to open Amazon in Edge Canary.",
                     Toast.LENGTH_LONG
             ).show();
         }
