@@ -1,19 +1,19 @@
 package com.amazon.shopping.dark;
 
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Window;
 import android.view.WindowInsetsController;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.webkit.WebSettingsCompat;
-import androidx.webkit.WebViewFeature;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -29,8 +29,11 @@ public class MainActivity extends AppCompatActivity {
         window.setStatusBarColor(Color.BLACK);
         window.setNavigationBarColor(Color.BLACK);
 
-        // Request native light/white SystemUI icons.
-        if (android.os.Build.VERSION.SDK_INT >= 30) {
+        // Black background while WebView is initializing.
+        window.getDecorView().setBackgroundColor(Color.BLACK);
+
+        // Native white system icons.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             WindowInsetsController controller = window.getInsetsController();
 
             if (controller != null) {
@@ -42,12 +45,15 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // Create WebView.
         webView = new WebView(this);
-        setContentView(webView);
-
         webView.setBackgroundColor(Color.BLACK);
 
-        WebViewClient client = new WebViewClient() {
+        setContentView(webView);
+
+        // WebView client.
+        webView.setWebViewClient(new WebViewClient() {
+
             @Override
             public boolean shouldOverrideUrlLoading(
                     WebView view,
@@ -55,12 +61,12 @@ public class MainActivity extends AppCompatActivity {
 
                 return false;
             }
-        };
+        });
 
-        webView.setWebViewClient(client);
         webView.setWebChromeClient(new WebChromeClient());
 
-        android.webkit.WebSettings settings = webView.getSettings();
+        // WebView settings.
+        WebSettings settings = webView.getSettings();
 
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -74,22 +80,15 @@ public class MainActivity extends AppCompatActivity {
 
         settings.setMediaPlaybackRequiresUserGesture(true);
 
+        // Cookies.
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(webView, true);
 
-        // Android 13/14 WebView algorithmic darkening.
-        if (WebViewFeature.isFeatureSupported(
-                WebViewFeature.ALGORITHMIC_DARKENING)) {
-
-            WebSettingsCompat.setAlgorithmicDarkeningAllowed(
-                    settings,
-                    true
-            );
-        }
-
+        // Load Amazon.
         webView.loadUrl("https://www.amazon.com/");
 
+        // Back button.
         getOnBackPressedDispatcher().addCallback(
                 this,
                 new OnBackPressedCallback(true) {
@@ -97,7 +96,7 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void handleOnBackPressed() {
 
-                        if (webView.canGoBack()) {
+                        if (webView != null && webView.canGoBack()) {
                             webView.goBack();
                         } else {
                             finish();
@@ -112,7 +111,10 @@ public class MainActivity extends AppCompatActivity {
 
         if (webView != null) {
             webView.stopLoading();
+            webView.setWebChromeClient(null);
+            webView.setWebViewClient(null);
             webView.destroy();
+            webView = null;
         }
 
         super.onDestroy();
