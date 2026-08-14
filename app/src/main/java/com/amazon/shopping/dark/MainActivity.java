@@ -14,6 +14,8 @@ import android.webkit.WebViewClient;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.webkit.WebSettingsCompat;
+import androidx.webkit.WebViewFeature;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -25,14 +27,11 @@ public class MainActivity extends AppCompatActivity {
 
         Window window = getWindow();
 
-        // Black system bars.
         window.setStatusBarColor(Color.BLACK);
         window.setNavigationBarColor(Color.BLACK);
 
-        // Black background while WebView is initializing.
         window.getDecorView().setBackgroundColor(Color.BLACK);
 
-        // Native white system icons.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             WindowInsetsController controller = window.getInsetsController();
 
@@ -45,13 +44,11 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // Create WebView.
         webView = new WebView(this);
         webView.setBackgroundColor(Color.BLACK);
 
         setContentView(webView);
 
-        // WebView client.
         webView.setWebViewClient(new WebViewClient() {
 
             @Override
@@ -61,11 +58,18 @@ public class MainActivity extends AppCompatActivity {
 
                 return false;
             }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+
+                injectDarkMode(view);
+                hideOpenInAppBanner(view);
+            }
         });
 
         webView.setWebChromeClient(new WebChromeClient());
 
-        // WebView settings.
         WebSettings settings = webView.getSettings();
 
         settings.setJavaScriptEnabled(true);
@@ -80,15 +84,29 @@ public class MainActivity extends AppCompatActivity {
 
         settings.setMediaPlaybackRequiresUserGesture(true);
 
-        // Cookies.
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(webView, true);
 
-        // Load Amazon.
+        /*
+         * Use Android WebView algorithmic darkening when available.
+         * Failure here will NOT prevent the application from starting.
+         */
+        try {
+            if (WebViewFeature.isFeatureSupported(
+                    WebViewFeature.ALGORITHMIC_DARKENING)) {
+
+                WebSettingsCompat.setAlgorithmicDarkeningAllowed(
+                        settings,
+                        true
+                );
+            }
+        } catch (Throwable ignored) {
+            // Continue without algorithmic darkening.
+        }
+
         webView.loadUrl("https://www.amazon.com/");
 
-        // Back button.
         getOnBackPressedDispatcher().addCallback(
                 this,
                 new OnBackPressedCallback(true) {
@@ -104,6 +122,87 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
         );
+    }
+
+    private void injectDarkMode(WebView view) {
+
+        String javascript =
+                "javascript:(function() {" +
+
+                "var style = document.getElementById('amazon-dark-mode');" +
+
+                "if (!style) {" +
+
+                "style = document.createElement('style');" +
+                "style.id = 'amazon-dark-mode';" +
+
+                "style.innerHTML = `" +
+
+                "html, body {" +
+                "background-color:#000000 !important;" +
+                "color:#ffffff !important;" +
+                "}" +
+
+                "body * {" +
+                "border-color:#444444 !important;" +
+                "}" +
+
+                "a {" +
+                "color:#7db7ff !important;" +
+                "}" +
+
+                "input, textarea, select {" +
+                "background-color:#111111 !important;" +
+                "color:#ffffff !important;" +
+                "border-color:#555555 !important;" +
+                "}" +
+
+                "header, nav, footer, section, article, div {" +
+                "background-color:transparent !important;" +
+                "}" +
+
+                "[style*='background-color: white'], " +
+                "[style*='background-color:#fff'], " +
+                "[style*='background-color: #fff'] {" +
+                "background-color:#000000 !important;" +
+                "}" +
+
+                "`;" +
+
+                "document.head.appendChild(style);" +
+
+                "}" +
+
+                "})();";
+
+        view.evaluateJavascript(javascript, null);
+    }
+
+    private void hideOpenInAppBanner(WebView view) {
+
+        String javascript =
+                "javascript:(function() {" +
+
+                "var selectors = [" +
+                "'[id*=\"open-app\"]'," +
+                "'[class*=\"open-app\"]'," +
+                "'[id*=\"app-banner\"]'," +
+                "'[class*=\"app-banner\"]'," +
+                "'[id*=\"appDownload\"]'," +
+                "'[class*=\"appDownload\"]'" +
+                "];" +
+
+                "selectors.forEach(function(selector) {" +
+
+                "document.querySelectorAll(selector).forEach(function(element) {" +
+                "element.style.display='none';" +
+                "});" +
+
+                "});" +
+
+                "})();";
+
+        view.evaluateJavascript(javascript, null);
     }
 
     @Override
