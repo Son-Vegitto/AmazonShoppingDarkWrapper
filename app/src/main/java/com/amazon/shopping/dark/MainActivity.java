@@ -2,125 +2,69 @@ package com.amazon.shopping.dark;
 
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
-import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.browser.customtabs.CustomTabsIntent;
 
 public class MainActivity extends AppCompatActivity {
 
-    public static final String PREFS_NAME =
-            "amazon_launcher_preferences";
-
-    public static final String PREF_BROWSER =
-            "browser_package";
-
-    public static final String DEFAULT_BROWSER =
-            "__DEFAULT_BROWSER__";
-
+    private static final String AMAZON_URL = "https://www.amazon.com/";
     private static final String EDGE_CANARY_PACKAGE =
             "com.microsoft.emmx.canary";
-
-    private static final String AMAZON_URL =
-            "https://www.amazon.com/";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        SharedPreferences prefs =
-                getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        // Immediately open Amazon using the saved browser selection.
+        openAmazon();
+    }
 
-        /*
-         * Edge Canary is the default choice.
-         */
-        String browserPackage =
-                prefs.getString(
-                        PREF_BROWSER,
-                        EDGE_CANARY_PACKAGE
+    private void openAmazon() {
+
+        String browser = getSharedPreferences(
+                "settings",
+                MODE_PRIVATE
+        ).getString(
+                "browser",
+                "edge_canary"
+        );
+
+        switch (browser) {
+
+            case "edge_canary":
+                openWithEdgeCanary();
+                break;
+
+            case "chrome":
+                openWithPackage(
+                        "com.android.chrome"
                 );
+                break;
 
-        openAmazon(browserPackage);
+            case "samsung_internet":
+                openWithPackage(
+                        "com.sec.android.app.sbrowser"
+                );
+                break;
+
+            case "default":
+            default:
+                openWithDefaultBrowser();
+                break;
+        }
     }
 
-    private void openAmazon(String browserPackage) {
-
-        /*
-         * "Default browser" means normal Android URL handling.
-         *
-         * On your phone this should go:
-         * Amazon Shopping (Dark) → URLCheck → your selected browser.
-         */
-        if (DEFAULT_BROWSER.equals(browserPackage)) {
-            openDefaultBrowser();
-            return;
-        }
-
-        /*
-         * Make sure the selected browser still exists.
-         */
-        if (!isPackageInstalled(browserPackage)) {
-
-            /*
-             * Fall back to Android's normal browser handling.
-             */
-            openDefaultBrowser();
-            return;
-        }
-
-        openCustomTab(browserPackage);
-    }
-
-    private void openCustomTab(String browserPackage) {
-
-        try {
-
-            CustomTabsIntent customTabsIntent =
-                    new CustomTabsIntent.Builder()
-                            .setShowTitle(false)
-                            .setShareState(
-                                    CustomTabsIntent.SHARE_STATE_ON
-                            )
-                            .build();
-
-            /*
-             * Explicitly select the browser.
-             *
-             * This is what lets Edge Canary bypass URLCheck.
-             */
-            customTabsIntent.intent.setPackage(
-                    browserPackage
-            );
-
-            customTabsIntent.launchUrl(
-                    this,
-                    Uri.parse(AMAZON_URL)
-            );
-
-        } catch (ActivityNotFoundException e) {
-
-            /*
-             * If the selected browser can't launch a Custom Tab,
-             * fall back to the normal browser.
-             */
-            openDefaultBrowser();
-
-        } catch (Exception e) {
-
-            Toast.makeText(
-                    this,
-                    "Unable to open Amazon.",
-                    Toast.LENGTH_LONG
-            ).show();
-        }
-
-        finish();
-    }
-
-    private void openDefaultBrowser() {
+    /**
+     * Opens Amazon directly in Edge Canary.
+     *
+     * This intentionally does NOT use a Custom Tab.
+     * Edge receives a normal ACTION_VIEW intent, but we
+     * explicitly target the Canary package.
+     */
+    private void openWithEdgeCanary() {
 
         try {
 
@@ -129,34 +73,97 @@ public class MainActivity extends AppCompatActivity {
                     Uri.parse(AMAZON_URL)
             );
 
+            intent.setPackage(EDGE_CANARY_PACKAGE);
+
+            /*
+             * Used by some Android browser/launcher
+             * implementations to identify an application-
+             * associated URL.
+             */
+            intent.putExtra(
+                    "com.android.browser.application_id",
+                    EDGE_CANARY_PACKAGE
+            );
+
+            /*
+             * Ask Android for a separate task rather than
+             * simply reusing the existing Edge task.
+             */
+            intent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK |
+                    Intent.FLAG_ACTIVITY_MULTIPLE_TASK
+            );
+
             startActivity(intent);
 
         } catch (ActivityNotFoundException e) {
 
-            Toast.makeText(
-                    this,
-                    "No browser is available.",
-                    Toast.LENGTH_LONG
-            ).show();
+            // Edge Canary isn't installed.
+            openWithDefaultBrowser();
         }
 
         finish();
     }
 
-    private boolean isPackageInstalled(String packageName) {
+    /**
+     * Opens the URL using a specifically selected browser.
+     */
+    private void openWithPackage(String packageName) {
 
         try {
 
-            getPackageManager().getPackageInfo(
-                    packageName,
-                    0
+            Intent intent = new Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse(AMAZON_URL)
             );
 
-            return true;
+            intent.setPackage(packageName);
 
-        } catch (Exception e) {
+            intent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK |
+                    Intent.FLAG_ACTIVITY_MULTIPLE_TASK
+            );
 
-            return false;
+            startActivity(intent);
+
+        } catch (ActivityNotFoundException e) {
+
+            openWithDefaultBrowser();
         }
+
+        finish();
+    }
+
+    /**
+     * Lets Android use the user's normal default browser.
+     *
+     * In your setup this can be URLCheck.
+     */
+    private void openWithDefaultBrowser() {
+
+        try {
+
+            Intent intent = new Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse(AMAZON_URL)
+            );
+
+            intent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK |
+                    Intent.FLAG_ACTIVITY_MULTIPLE_TASK
+            );
+
+            startActivity(intent);
+
+        } catch (ActivityNotFoundException ignored) {
+            // No browser available.
+        }
+
+        finish();
+    }
+
+    @Override
+    public void onBackPressed() {
+        finish();
     }
 }
