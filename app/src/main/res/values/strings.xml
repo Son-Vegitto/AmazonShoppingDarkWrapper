@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Amazon Shopping (Dark)</string>
+    <string name="browser_settings_short">Browser settings</string>
+    <string name="browser_settings_long">Amazon browser settings</string>
+
+</resources>
