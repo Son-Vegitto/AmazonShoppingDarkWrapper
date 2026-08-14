@@ -7,8 +7,6 @@ import android.os.Build;
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.browser.customtabs.CustomTabColorSchemeParams;
-import androidx.browser.customtabs.CustomTabsIntent;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -64,83 +62,80 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Open Amazon using Edge Canary's Custom Tabs
-     * implementation.
+     * Attempt to launch Amazon using Edge Canary's
+     * Chromium web-app/shortcut launch mechanism.
+     *
+     * These web-app extras are internal Chromium/Edge
+     * implementation details and are being tested here
+     * specifically to see whether Edge Canary recognizes
+     * them as a standalone web-app launch.
      */
     private void openWithEdgeCanary() {
 
         try {
 
-            CustomTabsIntent.Builder builder =
-                    new CustomTabsIntent.Builder();
+            Intent intent =
+                    new Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse(AMAZON_URL)
+                    );
 
             /*
-             * Dark toolbar.
-             */
-            CustomTabColorSchemeParams darkParams =
-                    new CustomTabColorSchemeParams.Builder()
-                            .setToolbarColor(
-                                    0xFF121212
-                            )
-                            .build();
-
-            builder.setDefaultColorSchemeParams(
-                    darkParams
-            );
-
-            /*
-             * Don't display the page title.
-             */
-            builder.setShowTitle(false);
-
-            /*
-             * Allow Edge to hide/collapse the URL bar
-             * while scrolling, if supported.
-             */
-            builder.setUrlBarHidingEnabled(true);
-
-            CustomTabsIntent customTabsIntent =
-                    builder.build();
-
-            /*
-             * Force Edge Canary as the Custom Tab provider.
+             * Force Edge Canary.
              *
              * This bypasses URLCheck when Edge Canary
              * is selected.
              */
-            customTabsIntent.intent.setPackage(
+            intent.setPackage(
                     EDGE_CANARY_PACKAGE
+            );
+
+            /*
+             * Chromium web-app launch metadata.
+             *
+             * 3 is the Chromium shortcut source value
+             * suggested for this type of launch.
+             */
+            intent.putExtra(
+                    "org.chromium.chrome.browser.webapp_source",
+                    3
+            );
+
+            /*
+             * Identify Amazon as the web-app ID.
+             */
+            intent.putExtra(
+                    "com.microsoft.emmx.webapp_id",
+                    AMAZON_URL
             );
 
             /*
              * Request a separate Android task.
              *
-             * This should preserve the user's existing
-             * Edge tabs/session.
+             * This should avoid reusing the user's existing
+             * Edge browser task and should not close or
+             * replace existing Edge tabs.
              */
-            customTabsIntent.intent.addFlags(
+            intent.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK |
                     Intent.FLAG_ACTIVITY_MULTIPLE_TASK
             );
 
             /*
-             * Launch Amazon.
+             * Launch Edge Canary.
              */
-            customTabsIntent.launchUrl(
-                    this,
-                    Uri.parse(AMAZON_URL)
-            );
+            startActivity(intent);
 
             /*
-             * Remove the wrapper Activity without
-             * displaying a transition animation.
+             * This wrapper has finished its job.
              */
             finishWithoutAnimation();
 
         } catch (ActivityNotFoundException e) {
 
             /*
-             * Edge Canary isn't available.
+             * Edge Canary isn't available or cannot handle
+             * the request. Fall back to the default browser.
              */
             openWithDefaultBrowser();
         }
@@ -177,12 +172,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Open Amazon using a specifically selected
-     * browser package.
+     * Open Amazon using a specifically selected browser.
      *
-     * Used for Chrome, Samsung Internet, Edge
-     * variants, or another browser discovered
-     * by SettingsActivity.
+     * Used for Chrome, Samsung Internet, or another
+     * browser discovered by SettingsActivity.
      */
     private void openWithPackage(
             String packageName
@@ -212,7 +205,7 @@ public class MainActivity extends AppCompatActivity {
         } catch (ActivityNotFoundException e) {
 
             /*
-             * Selected browser is unavailable.
+             * Selected browser is no longer available.
              * Fall back to the default browser.
              */
             openWithDefaultBrowser();
@@ -220,16 +213,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Finish this wrapper Activity without showing
-     * a closing/opening transition animation.
+     * Finish this wrapper without showing its closing
+     * transition animation.
      */
     private void finishWithoutAnimation() {
 
         finish();
 
-        /*
-         * Android 14/API 34 and newer.
-         */
         if (Build.VERSION.SDK_INT >= 34) {
 
             overrideActivityTransition(
@@ -240,9 +230,6 @@ public class MainActivity extends AppCompatActivity {
 
         } else {
 
-            /*
-             * Older Android versions.
-             */
             overridePendingTransition(
                     0,
                     0
