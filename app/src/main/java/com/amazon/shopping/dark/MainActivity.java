@@ -45,7 +45,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // WebView.
         webView = new WebView(this);
         webView.setBackgroundColor(Color.BLACK);
         setContentView(webView);
@@ -64,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
 
-                protectImages(view);
+                applyAmazonFixes(view);
             }
         });
 
@@ -84,13 +83,11 @@ public class MainActivity extends AppCompatActivity {
 
         settings.setMediaPlaybackRequiresUserGesture(true);
 
-        // Cookies.
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(webView, true);
 
         // Android/WebView algorithmic darkening.
-        // If unsupported, continue normally.
         try {
             if (WebViewFeature.isFeatureSupported(
                     WebViewFeature.ALGORITHMIC_DARKENING)) {
@@ -101,12 +98,11 @@ public class MainActivity extends AppCompatActivity {
                 );
             }
         } catch (Throwable ignored) {
-            // Do not allow darkening failure to crash the app.
+            // Continue normally if the WebView does not support it.
         }
 
         webView.loadUrl("https://www.amazon.com/");
 
-        // Back navigation.
         getOnBackPressedDispatcher().addCallback(
                 this,
                 new OnBackPressedCallback(true) {
@@ -124,18 +120,16 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
-    /**
-     * Protect product images from unwanted CSS transformations.
-     *
-     * Amazon's "Save on Amazon Devices" product cards can contain
-     * image assets that WebView's darkening algorithm renders completely
-     * black. This restores normal rendering for image elements without
-     * disabling dark mode for the rest of the website.
-     */
-    private void protectImages(WebView view) {
+    private void applyAmazonFixes(WebView view) {
 
         String javascript =
                 "javascript:(function() {" +
+
+                /*
+                 * =====================================================
+                 * 1. IMAGE PROTECTION
+                 * =====================================================
+                 */
 
                 "var style = document.getElementById('amazon-dark-image-fix');" +
 
@@ -169,14 +163,129 @@ public class MainActivity extends AppCompatActivity {
                 "`;" +
 
                 "document.head.appendChild(style);" +
-
                 "}" +
 
-                // Also remove any inline filters from image elements.
                 "document.querySelectorAll('img, picture img, video, canvas').forEach(function(el) {" +
                 "el.style.setProperty('filter', 'none', 'important');" +
                 "el.style.setProperty('mix-blend-mode', 'normal', 'important');" +
                 "});" +
+
+
+                /*
+                 * =====================================================
+                 * 2. MAKE THE DEVICE PRODUCT LABELS READABLE
+                 * =====================================================
+                 */
+
+                "function fixDeviceSection() {" +
+
+                "var headings = document.querySelectorAll('h1,h2,h3,h4,h5,h6,span,div');" +
+
+                "headings.forEach(function(heading) {" +
+
+                "var text = (heading.innerText || '').trim();" +
+
+                "if (text === 'Save on Amazon Devices') {" +
+
+                "var section = heading;" +
+
+                /*
+                 * Walk upward to find a reasonable section container.
+                 */
+                "for (var i = 0; i < 6 && section.parentElement; i++) {" +
+                "section = section.parentElement;" +
+                "}" +
+
+                /*
+                 * Make text inside the section readable while
+                 * preserving the dark background.
+                 */
+                "section.querySelectorAll('span,div,p,a').forEach(function(el) {" +
+
+                "var value = (el.innerText || '').trim();" +
+
+                "if (value.length > 0 && value.length < 120) {" +
+                "el.style.setProperty('color', '#ffffff', 'important');" +
+                "}" +
+
+                "});" +
+
+                "}" +
+
+                "});" +
+                "}" +
+
+                "fixDeviceSection();" +
+
+
+                /*
+                 * =====================================================
+                 * 3. HIDE AMAZON 'OPEN IN APP' BANNER
+                 * =====================================================
+                 */
+
+                "function hideAmazonAppBanner() {" +
+
+                "var elements = document.querySelectorAll('body *');" +
+
+                "elements.forEach(function(el) {" +
+
+                "var text = (el.innerText || '').trim();" +
+
+                "if (!text || text.length > 300) return;" +
+
+                "var lower = text.toLowerCase();" +
+
+                "if (" +
+                "lower.indexOf('open in app') !== -1 || " +
+                "lower.indexOf('open in the amazon app') !== -1 || " +
+                "lower.indexOf('open in amazon shopping') !== -1" +
+                ") {" +
+
+                /*
+                 * Only hide elements that look like the banner,
+                 * rather than hiding arbitrary page text.
+                 */
+                "var rect = el.getBoundingClientRect();" +
+
+                "if (rect.top < 250 && rect.height < 250) {" +
+                "el.style.setProperty('display', 'none', 'important');" +
+                "}" +
+
+                "}" +
+
+                "});" +
+                "}" +
+
+                "hideAmazonAppBanner();" +
+
+
+                /*
+                 * =====================================================
+                 * 4. WATCH FOR AMAZON DYNAMICALLY RECREATING THE BANNER
+                 * =====================================================
+                 */
+
+                "if (!window.amazonDarkObserver) {" +
+
+                "window.amazonDarkObserver = new MutationObserver(function() {" +
+
+                "hideAmazonAppBanner();" +
+                "fixDeviceSection();" +
+
+                "document.querySelectorAll('img, picture img, video, canvas').forEach(function(el) {" +
+                "el.style.setProperty('filter', 'none', 'important');" +
+                "el.style.setProperty('mix-blend-mode', 'normal', 'important');" +
+                "});" +
+
+                "});" +
+
+                "window.amazonDarkObserver.observe(document.documentElement, {" +
+                "childList: true," +
+                "subtree: true" +
+                "});" +
+
+                "}" +
 
                 "})();";
 
