@@ -27,11 +27,12 @@ public class MainActivity extends AppCompatActivity {
 
         Window window = getWindow();
 
+        // Black system bars.
         window.setStatusBarColor(Color.BLACK);
         window.setNavigationBarColor(Color.BLACK);
-
         window.getDecorView().setBackgroundColor(Color.BLACK);
 
+        // Native white system icons.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             WindowInsetsController controller = window.getInsetsController();
 
@@ -44,9 +45,9 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // WebView.
         webView = new WebView(this);
         webView.setBackgroundColor(Color.BLACK);
-
         setContentView(webView);
 
         webView.setWebViewClient(new WebViewClient() {
@@ -63,8 +64,7 @@ public class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
 
-                injectDarkMode(view);
-                hideOpenInAppBanner(view);
+                protectImages(view);
             }
         });
 
@@ -84,14 +84,13 @@ public class MainActivity extends AppCompatActivity {
 
         settings.setMediaPlaybackRequiresUserGesture(true);
 
+        // Cookies.
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(webView, true);
 
-        /*
-         * Use Android WebView algorithmic darkening when available.
-         * Failure here will NOT prevent the application from starting.
-         */
+        // Android/WebView algorithmic darkening.
+        // If unsupported, continue normally.
         try {
             if (WebViewFeature.isFeatureSupported(
                     WebViewFeature.ALGORITHMIC_DARKENING)) {
@@ -102,11 +101,12 @@ public class MainActivity extends AppCompatActivity {
                 );
             }
         } catch (Throwable ignored) {
-            // Continue without algorithmic darkening.
+            // Do not allow darkening failure to crash the app.
         }
 
         webView.loadUrl("https://www.amazon.com/");
 
+        // Back navigation.
         getOnBackPressedDispatcher().addCallback(
                 this,
                 new OnBackPressedCallback(true) {
@@ -124,47 +124,46 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
-    private void injectDarkMode(WebView view) {
+    /**
+     * Protect product images from unwanted CSS transformations.
+     *
+     * Amazon's "Save on Amazon Devices" product cards can contain
+     * image assets that WebView's darkening algorithm renders completely
+     * black. This restores normal rendering for image elements without
+     * disabling dark mode for the rest of the website.
+     */
+    private void protectImages(WebView view) {
 
         String javascript =
                 "javascript:(function() {" +
 
-                "var style = document.getElementById('amazon-dark-mode');" +
+                "var style = document.getElementById('amazon-dark-image-fix');" +
 
                 "if (!style) {" +
 
                 "style = document.createElement('style');" +
-                "style.id = 'amazon-dark-mode';" +
+                "style.id = 'amazon-dark-image-fix';" +
 
                 "style.innerHTML = `" +
 
-                "html, body {" +
-                "background-color:#000000 !important;" +
-                "color:#ffffff !important;" +
+                "img {" +
+                "filter: none !important;" +
+                "mix-blend-mode: normal !important;" +
                 "}" +
 
-                "body * {" +
-                "border-color:#444444 !important;" +
+                "picture img {" +
+                "filter: none !important;" +
+                "mix-blend-mode: normal !important;" +
                 "}" +
 
-                "a {" +
-                "color:#7db7ff !important;" +
+                "video {" +
+                "filter: none !important;" +
+                "mix-blend-mode: normal !important;" +
                 "}" +
 
-                "input, textarea, select {" +
-                "background-color:#111111 !important;" +
-                "color:#ffffff !important;" +
-                "border-color:#555555 !important;" +
-                "}" +
-
-                "header, nav, footer, section, article, div {" +
-                "background-color:transparent !important;" +
-                "}" +
-
-                "[style*='background-color: white'], " +
-                "[style*='background-color:#fff'], " +
-                "[style*='background-color: #fff'] {" +
-                "background-color:#000000 !important;" +
+                "canvas {" +
+                "filter: none !important;" +
+                "mix-blend-mode: normal !important;" +
                 "}" +
 
                 "`;" +
@@ -173,31 +172,10 @@ public class MainActivity extends AppCompatActivity {
 
                 "}" +
 
-                "})();";
-
-        view.evaluateJavascript(javascript, null);
-    }
-
-    private void hideOpenInAppBanner(WebView view) {
-
-        String javascript =
-                "javascript:(function() {" +
-
-                "var selectors = [" +
-                "'[id*=\"open-app\"]'," +
-                "'[class*=\"open-app\"]'," +
-                "'[id*=\"app-banner\"]'," +
-                "'[class*=\"app-banner\"]'," +
-                "'[id*=\"appDownload\"]'," +
-                "'[class*=\"appDownload\"]'" +
-                "];" +
-
-                "selectors.forEach(function(selector) {" +
-
-                "document.querySelectorAll(selector).forEach(function(element) {" +
-                "element.style.display='none';" +
-                "});" +
-
+                // Also remove any inline filters from image elements.
+                "document.querySelectorAll('img, picture img, video, canvas').forEach(function(el) {" +
+                "el.style.setProperty('filter', 'none', 'important');" +
+                "el.style.setProperty('mix-blend-mode', 'normal', 'important');" +
                 "});" +
 
                 "})();";
