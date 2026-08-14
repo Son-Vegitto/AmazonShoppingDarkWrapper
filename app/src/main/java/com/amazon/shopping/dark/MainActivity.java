@@ -6,6 +6,8 @@ import android.net.Uri;
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.browser.customtabs.CustomTabColorSchemeParams;
+import androidx.browser.customtabs.CustomTabsIntent;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -31,6 +33,10 @@ public class MainActivity extends AppCompatActivity {
         openAmazon();
     }
 
+    /**
+     * Determine which browser the user selected
+     * in SettingsActivity.
+     */
     private void openAmazon() {
 
         String browser =
@@ -54,66 +60,89 @@ public class MainActivity extends AppCompatActivity {
 
             openWithPackage(browser);
         }
-
-        finish();
     }
 
     /**
-     * Open Amazon directly in Edge Canary.
-     *
-     * This deliberately uses ACTION_VIEW rather than
-     * Custom Tabs so we can test whether Edge will give
-     * us the standalone-style presentation.
+     * Open Amazon using Edge Canary's Custom Tabs
+     * implementation.
      */
     private void openWithEdgeCanary() {
 
         try {
 
-            Intent intent =
-                    new Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse(AMAZON_URL)
-                    );
+            CustomTabsIntent.Builder builder =
+                    new CustomTabsIntent.Builder();
 
-            intent.setPackage(
-                    EDGE_CANARY_PACKAGE
+            /*
+             * Dark toolbar to match Amazon's dark appearance.
+             */
+            CustomTabColorSchemeParams darkParams =
+                    new CustomTabColorSchemeParams.Builder()
+                            .setToolbarColor(
+                                    0xFF121212
+                            )
+                            .build();
+
+            builder.setDefaultColorSchemeParams(
+                    darkParams
             );
 
             /*
-             * Browser/application identifier.
+             * Don't display the page title in the toolbar.
              */
-            intent.putExtra(
-                    "com.android.browser.application_id",
+            builder.setShowTitle(false);
+
+            /*
+             * Allow the URL portion of the toolbar to
+             * collapse when the page scrolls, if supported
+             * by Edge Canary.
+             */
+            builder.setUrlBarHidingEnabled(true);
+
+            CustomTabsIntent customTabsIntent =
+                    builder.build();
+
+            /*
+             * Force the Custom Tab to use Edge Canary
+             * instead of URLCheck or another browser.
+             */
+            customTabsIntent.intent.setPackage(
                     EDGE_CANARY_PACKAGE
             );
 
             /*
              * Request a separate Android task.
              *
-             * This should NOT interfere with the user's
-             * existing Edge tabs/session.
+             * This should leave the user's existing Edge
+             * tabs/session intact.
              */
-            intent.addFlags(
+            customTabsIntent.intent.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK |
                     Intent.FLAG_ACTIVITY_MULTIPLE_TASK
             );
 
-            startActivity(intent);
+            /*
+             * Launch Amazon.
+             */
+            customTabsIntent.launchUrl(
+                    this,
+                    Uri.parse(AMAZON_URL)
+            );
 
         } catch (ActivityNotFoundException e) {
 
             /*
-             * Edge Canary isn't available.
-             * Fall back to the normal default browser.
+             * Edge Canary isn't available or doesn't
+             * provide the required Custom Tabs service.
              */
             openWithDefaultBrowser();
         }
     }
 
     /**
-     * Open using the user's Android default browser.
+     * Open Amazon using Android's normal default browser.
      *
-     * In your setup this is normally URLCheck.
+     * In your setup this is URLCheck.
      */
     private void openWithDefaultBrowser() {
 
@@ -133,15 +162,17 @@ public class MainActivity extends AppCompatActivity {
             startActivity(intent);
 
         } catch (ActivityNotFoundException ignored) {
-            // No browser available.
+
+            // No browser is available.
         }
     }
 
     /**
-     * Open using a specifically selected browser.
+     * Open Amazon using a specifically selected
+     * browser package.
      *
-     * This allows Chrome, Samsung Internet, or another
-     * browser discovered by SettingsActivity.
+     * This is used for Chrome, Samsung Internet,
+     * or other browsers discovered by SettingsActivity.
      */
     private void openWithPackage(
             String packageName
@@ -168,6 +199,10 @@ public class MainActivity extends AppCompatActivity {
 
         } catch (ActivityNotFoundException e) {
 
+            /*
+             * If the selected browser is no longer installed,
+             * fall back to the Android default browser.
+             */
             openWithDefaultBrowser();
         }
     }
