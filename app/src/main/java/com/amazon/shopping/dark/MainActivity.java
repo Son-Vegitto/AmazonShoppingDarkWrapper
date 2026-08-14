@@ -74,7 +74,7 @@ public class MainActivity extends AppCompatActivity {
                     new CustomTabsIntent.Builder();
 
             /*
-             * Dark toolbar to match Amazon's dark appearance.
+             * Dark toolbar to match the Amazon dark appearance.
              */
             CustomTabColorSchemeParams darkParams =
                     new CustomTabColorSchemeParams.Builder()
@@ -94,7 +94,7 @@ public class MainActivity extends AppCompatActivity {
 
             /*
              * Allow the URL portion of the toolbar to
-             * collapse when the page scrolls, if supported
+             * collapse while scrolling, if supported
              * by Edge Canary.
              */
             builder.setUrlBarHidingEnabled(true);
@@ -103,8 +103,9 @@ public class MainActivity extends AppCompatActivity {
                     builder.build();
 
             /*
-             * Force the Custom Tab to use Edge Canary
-             * instead of URLCheck or another browser.
+             * Force the Custom Tab to use Edge Canary.
+             *
+             * This bypasses URLCheck for this selection.
              */
             customTabsIntent.intent.setPackage(
                     EDGE_CANARY_PACKAGE
@@ -113,8 +114,8 @@ public class MainActivity extends AppCompatActivity {
             /*
              * Request a separate Android task.
              *
-             * This should leave the user's existing Edge
-             * tabs/session intact.
+             * This should not close or replace the user's
+             * existing Edge tabs/session.
              */
             customTabsIntent.intent.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK |
@@ -129,11 +130,17 @@ public class MainActivity extends AppCompatActivity {
                     Uri.parse(AMAZON_URL)
             );
 
+            /*
+             * This application is only a launcher/wrapper.
+             * Remove it after Edge has been launched.
+             */
+            finish();
+
         } catch (ActivityNotFoundException e) {
 
             /*
-             * Edge Canary isn't available or doesn't
-             * provide the required Custom Tabs service.
+             * Edge Canary isn't available or cannot handle
+             * the Custom Tab request.
              */
             openWithDefaultBrowser();
         }
@@ -142,7 +149,7 @@ public class MainActivity extends AppCompatActivity {
     /**
      * Open Amazon using Android's normal default browser.
      *
-     * In your setup this is URLCheck.
+     * In your setup this is normally URLCheck.
      */
     private void openWithDefaultBrowser() {
 
@@ -161,18 +168,26 @@ public class MainActivity extends AppCompatActivity {
 
             startActivity(intent);
 
+            /*
+             * Remove the wrapper activity after launching
+             * the browser.
+             */
+            finish();
+
         } catch (ActivityNotFoundException ignored) {
 
-            // No browser is available.
+            /*
+             * There is no browser available.
+             */
+            finish();
         }
     }
 
     /**
-     * Open Amazon using a specifically selected
-     * browser package.
+     * Open Amazon using a specifically selected browser.
      *
      * This is used for Chrome, Samsung Internet,
-     * or other browsers discovered by SettingsActivity.
+     * or another browser discovered by SettingsActivity.
      */
     private void openWithPackage(
             String packageName
@@ -197,19 +212,19 @@ public class MainActivity extends AppCompatActivity {
 
             startActivity(intent);
 
+            /*
+             * Remove the wrapper activity after launching
+             * the selected browser.
+             */
+            finish();
+
         } catch (ActivityNotFoundException e) {
 
             /*
-             * If the selected browser is no longer installed,
-             * fall back to the Android default browser.
+             * The selected browser may have been removed
+             * or disabled. Fall back to the default browser.
              */
             openWithDefaultBrowser();
         }
-    }
-
-    @Override
-    protected void onDestroy() {
-
-        super.onDestroy();
     }
 }
