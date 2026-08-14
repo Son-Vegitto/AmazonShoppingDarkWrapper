@@ -12,26 +12,17 @@ import androidx.browser.customtabs.CustomTabsIntent;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String EDGE_CANARY_PACKAGE =
-            "com.microsoft.emmx.canary";
-
-    private static final String PREFS_NAME =
+    public static final String PREFS_NAME =
             "amazon_launcher_preferences";
 
-    private static final String PREF_BROWSER =
-            "browser";
+    public static final String PREF_BROWSER =
+            "browser_package";
 
-    private static final String BROWSER_EDGE =
-            "edge";
+    public static final String DEFAULT_BROWSER =
+            "__DEFAULT_BROWSER__";
 
-    private static final String BROWSER_DEFAULT =
-            "default";
-
-    private static final String BROWSER_CHROME =
-            "chrome";
-
-    private static final String BROWSER_SAMSUNG =
-            "samsung";
+    private static final String EDGE_CANARY_PACKAGE =
+            "com.microsoft.emmx.canary";
 
     private static final String AMAZON_URL =
             "https://www.amazon.com/";
@@ -43,41 +34,47 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences prefs =
                 getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
 
-        String browser =
-                prefs.getString(PREF_BROWSER, BROWSER_EDGE);
+        /*
+         * Edge Canary is the default choice.
+         */
+        String browserPackage =
+                prefs.getString(
+                        PREF_BROWSER,
+                        EDGE_CANARY_PACKAGE
+                );
+
+        openAmazon(browserPackage);
+    }
+
+    private void openAmazon(String browserPackage) {
 
         /*
-         * If this is the first launch, use Edge Canary.
+         * "Default browser" means normal Android URL handling.
          *
-         * For now, the browser-selection UI will be added
-         * separately so the launcher remains reliable.
+         * On your phone this should go:
+         * Amazon Shopping (Dark) → URLCheck → your selected browser.
          */
-        openAmazon(browser);
+        if (DEFAULT_BROWSER.equals(browserPackage)) {
+            openDefaultBrowser();
+            return;
+        }
+
+        /*
+         * Make sure the selected browser still exists.
+         */
+        if (!isPackageInstalled(browserPackage)) {
+
+            /*
+             * Fall back to Android's normal browser handling.
+             */
+            openDefaultBrowser();
+            return;
+        }
+
+        openCustomTab(browserPackage);
     }
 
-    private void openAmazon(String browser) {
-
-        if (BROWSER_DEFAULT.equals(browser)) {
-            openWithDefaultBrowser();
-            return;
-        }
-
-        String packageName = getBrowserPackage(browser);
-
-        if (packageName == null) {
-            openWithDefaultBrowser();
-            return;
-        }
-
-        if (!isPackageInstalled(packageName)) {
-            openWithDefaultBrowser();
-            return;
-        }
-
-        openWithCustomTab(packageName);
-    }
-
-    private void openWithCustomTab(String packageName) {
+    private void openCustomTab(String browserPackage) {
 
         try {
 
@@ -90,13 +87,12 @@ public class MainActivity extends AppCompatActivity {
                             .build();
 
             /*
-             * Force Custom Tabs to the selected browser.
+             * Explicitly select the browser.
              *
-             * This is what keeps Edge Canary from being
-             * replaced by URLCheck or another browser.
+             * This is what lets Edge Canary bypass URLCheck.
              */
             customTabsIntent.intent.setPackage(
-                    packageName
+                    browserPackage
             );
 
             customTabsIntent.launchUrl(
@@ -106,7 +102,11 @@ public class MainActivity extends AppCompatActivity {
 
         } catch (ActivityNotFoundException e) {
 
-            openWithDefaultBrowser();
+            /*
+             * If the selected browser can't launch a Custom Tab,
+             * fall back to the normal browser.
+             */
+            openDefaultBrowser();
 
         } catch (Exception e) {
 
@@ -120,7 +120,7 @@ public class MainActivity extends AppCompatActivity {
         finish();
     }
 
-    private void openWithDefaultBrowser() {
+    private void openDefaultBrowser() {
 
         try {
 
@@ -129,12 +129,6 @@ public class MainActivity extends AppCompatActivity {
                     Uri.parse(AMAZON_URL)
             );
 
-            /*
-             * No package is specified here.
-             *
-             * Android therefore uses the normal handler for
-             * the URL. On your phone this should be URLCheck.
-             */
             startActivity(intent);
 
         } catch (ActivityNotFoundException e) {
@@ -147,24 +141,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         finish();
-    }
-
-    private String getBrowserPackage(String browser) {
-
-        switch (browser) {
-
-            case BROWSER_EDGE:
-                return EDGE_CANARY_PACKAGE;
-
-            case BROWSER_CHROME:
-                return "com.android.chrome";
-
-            case BROWSER_SAMSUNG:
-                return "com.sec.android.app.sbrowser";
-
-            default:
-                return null;
-        }
     }
 
     private boolean isPackageInstalled(String packageName) {
